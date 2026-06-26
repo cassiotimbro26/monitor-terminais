@@ -1195,13 +1195,23 @@
       cells=[evtA, evtB, dl];
     }
     var st=statusOf(dl.ts, alerta);
-    return {term:term, navio:navio||'—', sub:sub, ref:ref, evtA:evtA, evtB:evtB, dl:dl, cells:cells, alerta:alerta, st:st};
+    /* chave natural por terminal (mesma lógica do chave_natural no Supabase):
+       santos=idAtracacao, dpw=visita, btp=navio|viagem. É o ID forte de cada
+       linha — sem ele, atracações distintas do mesmo navio/berço (viagem nula
+       no Santos) colidem e geram alterações falsas. */
+    var nk;
+    if(term==='santos')      nk=it.idAtracacao;
+    else if(term==='dpw')    nk=it.visita;
+    else                     nk=(it.navio||'')+'|'+(it.viagem||'');
+    if(nk==null||nk==='')    nk=(navio||'—')+'|'+(it.viagem||'')+'|'+sub; /* fallback */
+    return {term:term, nk:String(nk), navio:navio||'—', sub:sub, ref:ref, evtA:evtA, evtB:evtB, dl:dl, cells:cells, alerta:alerta, st:st};
   }
 
-  /* identidade única da linha: terminal + navio + viagem/berço (r.sub).
-     Sem a viagem, dois navios de mesmo nome (ex.: NC BRISA O28N e O29N)
-     colidiriam e gerariam alterações falsas / mudanças não detectadas. */
-  function rowKey(r){ return r.term+'|'+r.navio+'|'+r.sub; }
+  /* identidade única da linha = terminal + chave natural (idAtracacao/visita/navio|viagem).
+     Antes usava navio+viagem+berço, mas no Santos a viagem é nula e o berço se
+     repete, então duas atracações do mesmo navio colidiam (ex.: COSCO 26/1344 vs
+     26/1345) gerando alterações falsas. A chave natural resolve definitivamente. */
+  function rowKey(r){ return r.term+'|'+r.nk; }
 
   function sortRows(rows){
     return rows.slice().sort(function(a,b){
