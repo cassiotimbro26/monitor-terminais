@@ -1198,6 +1198,11 @@
     return {term:term, navio:navio||'—', sub:sub, ref:ref, evtA:evtA, evtB:evtB, dl:dl, cells:cells, alerta:alerta, st:st};
   }
 
+  /* identidade única da linha: terminal + navio + viagem/berço (r.sub).
+     Sem a viagem, dois navios de mesmo nome (ex.: NC BRISA O28N e O29N)
+     colidiriam e gerariam alterações falsas / mudanças não detectadas. */
+  function rowKey(r){ return r.term+'|'+r.navio+'|'+r.sub; }
+
   function sortRows(rows){
     return rows.slice().sort(function(a,b){
       if(a.st.rank!==b.st.rank) return a.st.rank-b.st.rank;
@@ -1208,7 +1213,7 @@
 
   function dvCell(o){ return '<td><span class="dv'+(o.ts==null?' empty':'')+'">'+esc(o.label)+'</span></td>'; }
   function rowHtml(r){
-    var key=r.term+'|'+r.navio, chg=changedKeys[key];
+    var key=rowKey(r), chg=changedKeys[key];
     return '<tr class="'+(chg?'tr-changed':(r.st.rank<=1?'tr-2h':(r.st.rank===2?'tr-6h':'')))+'">'+
       '<td><div class="ship-name">'+esc(r.navio)+(chg?' <span class="bdg-changed">Alterado</span>':'')+
         '</div><div class="ship-sub">'+esc(r.sub)+'</div></td>'+
@@ -1321,7 +1326,7 @@
     var k=countByRank(rows);
     var html='';
     rows.forEach(function(r){
-      var key=r.term+'|'+r.navio, chg=changedKeys[key];
+      var key=rowKey(r), chg=changedKeys[key];
       html+='<tr class="'+(chg?'tr-changed':(r.st.rank<=1?'tr-2h':(r.st.rank===2?'tr-6h':'')))+'">'+
         '<td><span class="tpill '+TPILL[r.term]+'">'+esc(TSHORT[r.term])+'</span></td>'+
         '<td><div class="ship-name">'+esc(r.navio)+(chg?' <span class="bdg-changed">Alterado</span>':'')+
@@ -1344,13 +1349,13 @@
   function detectChanges(allRows){
     var changes=[], newSnap={};
     allRows.forEach(function(r){
-      var key=r.term+'|'+r.navio;
+      var key=rowKey(r);
       var v={evtA:r.evtA.label, evtB:r.evtB.label, dl:r.dl.label, st:r.st.label};
       newSnap[key]=v;
       var b=lastSnap[key]; if(!b) return; /* navio novo não conta como alteração */
       var fields=[['evtA',COLS[r.term][2]],['evtB',COLS[r.term][3]],['dl','Deadline'],['st','Status']];
       fields.forEach(function(f){
-        if(v[f[0]]!==b[f[0]]) changes.push({tab:r.term, navio:r.navio, viagem:r.sub, fieldLabel:f[1], old:b[f[0]], new:v[f[0]]});
+        if(v[f[0]]!==b[f[0]]) changes.push({key:key, tab:r.term, navio:r.navio, viagem:r.sub, fieldLabel:f[1], old:b[f[0]], new:v[f[0]]});
       });
     });
     lastSnap=newSnap;
@@ -1436,7 +1441,7 @@
         DATA[t]=rows; allRows=allRows.concat(rows);
       });
       var changes=detectChanges(allRows);
-      changedKeys={}; changes.forEach(function(c){changedKeys[c.tab+'|'+c.navio]=true;});
+      changedKeys={}; changes.forEach(function(c){changedKeys[c.key]=true;});
       TERMS.forEach(renderTerminal);
       buildConsolidado();
       if(maxCap!=null) setUpdateTime(maxCap);
