@@ -271,6 +271,35 @@
       margin-top: 2px;
     }
 
+    /* ===== FILTER BAR ===== */
+    .filter-bar {
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 9px 14px;
+      background: #fff; border: 1px solid #dde0e6; padding: 11px 14px; margin-bottom: 10px;
+    }
+    .flt-field { display: flex; flex-direction: column; gap: 3px; }
+    .flt-field .flt-label {
+      font: 700 9px var(--timbro-font-body); text-transform: uppercase;
+      letter-spacing: .5px; color: var(--timbro-muted);
+    }
+    .flt-input, .flt-select {
+      font: 400 13px var(--timbro-font-body); color: var(--timbro-heading);
+      background: #fff; border: 1px solid #cdd2da; padding: 6px 9px; min-width: 165px; outline: none;
+    }
+    .flt-input { min-width: 215px; }
+    .flt-input:focus, .flt-select:focus { border-color: var(--timbro-primary); }
+    .flt-chips { display: flex; gap: 4px; }
+    .flt-chip {
+      font: 700 11px var(--timbro-font-body); background: var(--timbro-gray-light);
+      color: var(--timbro-muted); border: 1px solid transparent; padding: 6px 11px; cursor: pointer;
+    }
+    .flt-chip:hover { background: #e6e8ec; }
+    .flt-chip.active { background: var(--timbro-navy); color: #fff; }
+    .flt-clear {
+      font: 700 11px var(--timbro-font-body); background: none; border: 1px solid #cdd2da;
+      color: var(--timbro-muted); padding: 6px 12px; cursor: pointer; margin-left: auto; align-self: flex-end;
+    }
+    .flt-clear:hover { border-color: var(--timbro-primary); color: var(--timbro-primary); }
+
     /* ===== SECTION HEADER ===== */
     .section-hd {
       display: flex;
@@ -958,6 +987,7 @@
       <div class="kpi-card"><div class="kpi-label">Deadline &lt; 6h</div><div class="kpi-value v-warn" id="kpiConsSoon">—</div><div class="kpi-foot">requer atenção</div></div>
       <div class="kpi-card"><div class="kpi-label">Encerrado / sem prazo</div><div class="kpi-value" id="kpiConsNone">—</div><div class="kpi-foot">fora da janela ativa</div></div>
     </div>
+    <div id="consFilterRoot"></div>
     <div class="section-hd">
       <span class="section-title">Frota consolidada — ordenada por urgência</span>
       <span class="section-pill" id="consCount">—</span>
@@ -1015,6 +1045,101 @@
     btp:    ['Navio / Viagem','Agência','Liberação Dry','Liberação Reefer','Deadline','Status'],
     santos: ['Navio / Viagem','Serviço','Atracação','Saída Prevista','Deadline','Status']
   };
+
+  /* ---- filtros (client-side, por aba) ---- */
+  var FILTER_LABEL={dpw:'Armador', btp:'Agência', santos:'Serviço'};
+  var STATUS_LIST=['Em alerta','Deadline < 2h','Deadline < 6h','Deadline < 24h','No prazo','Encerrado','Sem deadline'];
+  function newFilter(){ return {q:'', ref:'', status:'', dl:'', term:''}; }
+  var FILTERS={dpw:newFilter(), santos:newFilter(), btp:newFilter(), cons:newFilter()};
+
+  function distinctRefs(rows){
+    var set={};
+    (rows||[]).forEach(function(r){ if(r.ref && r.ref!=='—') set[r.ref]=true; });
+    return Object.keys(set).sort(function(a,b){ return a.localeCompare(b,'pt'); });
+  }
+  function inDlWindow(ts, win){
+    if(!win) return true;
+    if(ts==null) return false;
+    if(win==='today'){
+      var d=new Date(), start=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+      return ts>=start && ts<=start+86400000-1;
+    }
+    var now=Date.now(), hrs=parseInt(win,10);
+    return ts>=now && ts<=now+hrs*3600000;
+  }
+  function rowMatches(r, f){
+    if(f.q){
+      var hay=((r.navio||'')+' '+(r.sub||'')+' '+(r.ref||'')).toLowerCase();
+      if(hay.indexOf(f.q.toLowerCase())<0) return false;
+    }
+    if(f.ref && r.ref!==f.ref) return false;
+    if(f.status && r.st.label!==f.status) return false;
+    if(f.term && r.term!==f.term) return false;
+    if(f.dl && !inDlWindow(r.dl.ts, f.dl)) return false;
+    return true;
+  }
+  function filterActive(f){ return !!(f.q||f.ref||f.status||f.dl||f.term); }
+
+  /* ---- construção da barra de filtros ---- */
+  function fltField(label, control){
+    return '<div class="flt-field"><span class="flt-label">'+esc(label)+'</span>'+control+'</div>';
+  }
+  function fltOpts(values, sel){
+    var h='<option value="">Todos</option>';
+    values.forEach(function(v){ h+='<option value="'+esc(v)+'"'+(sel===v?' selected':'')+'>'+esc(v)+'</option>'; });
+    return h;
+  }
+  function fltChips(scope, sel){
+    var opts=[['','Todos'],['today','Hoje'],['48','48h'],['168','7 dias']];
+    return '<div class="flt-chips" id="f-dl-'+scope+'">'+opts.map(function(o){
+      return '<button type="button" class="flt-chip'+(sel===o[0]?' active':'')+'" data-dl="'+o[0]+'">'+esc(o[1])+'</button>';
+    }).join('')+'</div>';
+  }
+  function filterBarHtml(term){
+    var f=FILTERS[term];
+    return '<div class="filter-bar">'+
+      fltField('Buscar navio','<input class="flt-input" type="text" id="f-q-'+term+'" placeholder="Navio, viagem, RAP, berço…" value="'+esc(f.q)+'">')+
+      fltField(FILTER_LABEL[term],'<select class="flt-select" id="f-ref-'+term+'">'+fltOpts(distinctRefs(DATA[term]),f.ref)+'</select>')+
+      fltField('Status','<select class="flt-select" id="f-st-'+term+'">'+fltOpts(STATUS_LIST,f.status)+'</select>')+
+      fltField('Deadline em',fltChips(term,f.dl))+
+      '<button class="flt-clear" id="f-clr-'+term+'">Limpar filtros</button>'+
+    '</div>';
+  }
+  function bindFilters(term){
+    var q=document.getElementById('f-q-'+term);
+    if(q) q.oninput=function(){ FILTERS[term].q=this.value; applyFilters(term); };
+    var ref=document.getElementById('f-ref-'+term);
+    if(ref) ref.onchange=function(){ FILTERS[term].ref=this.value; applyFilters(term); };
+    var st=document.getElementById('f-st-'+term);
+    if(st) st.onchange=function(){ FILTERS[term].status=this.value; applyFilters(term); };
+    var dl=document.getElementById('f-dl-'+term);
+    if(dl) dl.onclick=function(e){
+      var b=e.target.closest('.flt-chip'); if(!b) return;
+      FILTERS[term].dl=b.getAttribute('data-dl');
+      dl.querySelectorAll('.flt-chip').forEach(function(c){ c.classList.toggle('active', c===b); });
+      applyFilters(term);
+    };
+    var clr=document.getElementById('f-clr-'+term);
+    if(clr) clr.onclick=function(){ FILTERS[term]=newFilter(); renderTerminal(term); };
+  }
+  function applyFilters(term){
+    var all=DATA[term]||[], f=FILTERS[term];
+    var rows=all.filter(function(r){ return rowMatches(r,f); });
+    var k=countByRank(rows);
+    var tbody=document.getElementById('tbody-'+term);
+    if(tbody){
+      if(!rows.length) tbody.innerHTML='<tr><td colspan="'+COLS[term].length+'"><span class="dv empty">Nenhum navio com os filtros aplicados.</span></td></tr>';
+      else tbody.innerHTML=rows.map(rowHtml).join('');
+    }
+    setText('kpiTotal-'+term, k.total);
+    setText('kpiAlert-'+term, k.alert);
+    setText('kpiSoon-'+term,  k.soon);
+    setText('kpiNone-'+term,  k.none);
+    var act=filterActive(f);
+    setText('kpiFoot-'+term, act ? ('de '+all.length+' na leitura') : 'na última leitura');
+    var pill=document.getElementById('pill-'+term);
+    if(pill) pill.textContent = act ? (rows.length+' de '+all.length+' navios') : (all.length+' navios');
+  }
 
   var DATA={};        /* term -> [linhas normalizadas] */
   var META={};        /* term -> {capturedAt, execId, count, error} */
@@ -1097,6 +1222,12 @@
       '<div class="kpi-value'+(cls?(' '+cls):'')+'">'+value+'</div>'+
       '<div class="kpi-foot">'+esc(foot)+'</div></div>';
   }
+  /* KPI com ids p/ atualizar conforme o filtro */
+  function kpiCardId(label,valId,cls,foot,footId){
+    return '<div class="kpi-card"><div class="kpi-label">'+esc(label)+'</div>'+
+      '<div class="kpi-value'+(cls?(' '+cls):'')+'" id="'+valId+'">—</div>'+
+      '<div class="kpi-foot"'+(footId?(' id="'+footId+'"'):'')+'>'+esc(foot)+'</div></div>';
+  }
 
   function countByRank(rows){
     var k={total:rows.length, alert:0, soon:0, none:0};
@@ -1120,40 +1251,76 @@
   function renderTerminal(term){
     var root=document.getElementById('root-'+term);
     if(!root) return;
-    var rows=(DATA[term]||[]).slice();  /* ordem nativa do n8n — não reordenar */
-    var k=countByRank(rows);
     var cols=COLS[term];
     var html='';
     html+='<div class="kpi-grid">'+
-      kpiCard('Total navios', k.total, '', 'na última leitura')+
-      kpiCard('Em alerta / < 2h', k.alert, 'v-alert', 'deadline iminente')+
-      kpiCard('Deadline < 6h', k.soon, 'v-warn', 'requer atenção')+
-      kpiCard('Encerrado / sem prazo', k.none, '', 'fora da janela ativa')+
+      kpiCardId('Total navios', 'kpiTotal-'+term, '', 'na última leitura', 'kpiFoot-'+term)+
+      kpiCardId('Em alerta / < 2h', 'kpiAlert-'+term, 'v-alert', 'deadline iminente')+
+      kpiCardId('Deadline < 6h', 'kpiSoon-'+term, 'v-warn', 'requer atenção')+
+      kpiCardId('Encerrado / sem prazo', 'kpiNone-'+term, '', 'fora da janela ativa')+
       '</div>';
+    html+=filterBarHtml(term);
     html+='<div class="section-hd"><span class="section-title">Programação — '+esc(TSHORT[term])+'</span>'+
-      '<span class="section-pill">'+rows.length+' navios</span>'+leituraNote(term)+'</div>';
+      '<span class="section-pill" id="pill-'+term+'">—</span>'+leituraNote(term)+'</div>';
     html+='<div class="table-box"><table class="t"><thead><tr>';
     cols.forEach(function(c){ html+='<th>'+esc(c)+'</th>'; });
-    html+='</tr></thead><tbody>';
-    if(!rows.length){ html+='<tr><td colspan="'+cols.length+'"><span class="dv empty">Sem dados nesta leitura.</span></td></tr>'; }
-    else rows.forEach(function(r){ html+=rowHtml(r); });
-    html+='</tbody></table></div>';
+    html+='</tr></thead><tbody id="tbody-'+term+'"></tbody></table></div>';
     html+='<div class="legend">'+
       '<div class="leg-item"><div class="leg-box l-changed"></div>Linha alterada desde a última leitura</div>'+
       '<div class="leg-item"><div class="leg-box l-2h"></div>Em alerta / deadline em menos de 2h</div>'+
       '<div class="leg-item"><div class="leg-box l-6h"></div>Deadline em menos de 6h</div></div>';
     root.innerHTML=html;
+    bindFilters(term);   /* eventos da barra */
+    applyFilters(term);  /* preenche tabela + KPIs (respeita filtro atual) */
   }
 
+  function filterBarConsHtml(){
+    var f=FILTERS.cons, allRefs=[];
+    TERMS.forEach(function(t){ allRefs=allRefs.concat(DATA[t]||[]); });
+    return '<div class="filter-bar">'+
+      fltField('Buscar navio','<input class="flt-input" type="text" id="f-q-cons" placeholder="Navio, viagem, agência…" value="'+esc(f.q)+'">')+
+      fltField('Terminal','<select class="flt-select" id="f-term-cons"><option value="">Todos</option>'+
+        TERMS.map(function(t){ return '<option value="'+t+'"'+(f.term===t?' selected':'')+'>'+esc(TSHORT[t])+'</option>'; }).join('')+'</select>')+
+      fltField('Armador / Agência / Serviço','<select class="flt-select" id="f-ref-cons">'+fltOpts(distinctRefs(allRefs),f.ref)+'</select>')+
+      fltField('Status','<select class="flt-select" id="f-st-cons">'+fltOpts(STATUS_LIST,f.status)+'</select>')+
+      fltField('Deadline em',fltChips('cons',f.dl))+
+      '<button class="flt-clear" id="f-clr-cons">Limpar filtros</button>'+
+    '</div>';
+  }
+  function bindFiltersCons(){
+    var q=document.getElementById('f-q-cons');
+    if(q) q.oninput=function(){ FILTERS.cons.q=this.value; applyCons(); };
+    var tm=document.getElementById('f-term-cons');
+    if(tm) tm.onchange=function(){ FILTERS.cons.term=this.value; applyCons(); };
+    var ref=document.getElementById('f-ref-cons');
+    if(ref) ref.onchange=function(){ FILTERS.cons.ref=this.value; applyCons(); };
+    var st=document.getElementById('f-st-cons');
+    if(st) st.onchange=function(){ FILTERS.cons.status=this.value; applyCons(); };
+    var dl=document.getElementById('f-dl-cons');
+    if(dl) dl.onclick=function(e){
+      var b=e.target.closest('.flt-chip'); if(!b) return;
+      FILTERS.cons.dl=b.getAttribute('data-dl');
+      dl.querySelectorAll('.flt-chip').forEach(function(c){ c.classList.toggle('active', c===b); });
+      applyCons();
+    };
+    var clr=document.getElementById('f-clr-cons');
+    if(clr) clr.onclick=function(){ FILTERS.cons=newFilter(); buildConsolidado(); };
+  }
   function buildConsolidado(){
+    var fr=document.getElementById('consFilterRoot');
+    if(fr){ fr.innerHTML=filterBarConsHtml(); bindFiltersCons(); }
+    applyCons();
+  }
+  function applyCons(){
     var tbody=document.getElementById('consTableBody');
     if(!tbody) return;
     var all=[];
     TERMS.forEach(function(t){ all=all.concat(DATA[t]||[]); });
-    all=sortRows(all);
-    var k=countByRank(all);
+    var total0=all.length, f=FILTERS.cons;
+    var rows=sortRows(all.filter(function(r){ return rowMatches(r,f); }));
+    var k=countByRank(rows);
     var html='';
-    all.forEach(function(r){
+    rows.forEach(function(r){
       var key=r.term+'|'+r.navio, chg=changedKeys[key];
       html+='<tr class="'+(chg?'tr-changed':(r.st.rank<=1?'tr-2h':(r.st.rank===2?'tr-6h':'')))+'">'+
         '<td><span class="tpill '+TPILL[r.term]+'">'+esc(TSHORT[r.term])+'</span></td>'+
@@ -1163,13 +1330,13 @@
         dvCell(r.evtA.ts!=null?r.evtA:r.evtB)+dvCell(r.dl)+
         '<td><span class="stp '+r.st.cls+'"><span class="stp-dot"></span>'+esc(r.st.label)+'</span></td></tr>';
     });
-    if(!all.length) html='<tr><td colspan="6"><span class="dv empty">Sem dados.</span></td></tr>';
+    if(!rows.length) html='<tr><td colspan="6"><span class="dv empty">'+(total0?'Nenhum navio com os filtros aplicados.':'Sem dados.')+'</span></td></tr>';
     tbody.innerHTML=html;
     setText('kpiConsTotal', k.total);
     setText('kpiConsOpen',  k.alert);
     setText('kpiConsSoon',  k.soon);
     setText('kpiConsNone',  k.none);
-    setText('consCount', k.total+' navios');
+    setText('consCount', filterActive(f) ? (k.total+' de '+total0+' navios') : (k.total+' navios'));
   }
   function setText(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
 
