@@ -983,7 +983,7 @@
   <div id="tab-consolidado" class="tab-panel">
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">Total navios</div><div class="kpi-value" id="kpiConsTotal">—</div><div class="kpi-foot">frota nos 3 terminais</div></div>
-      <div class="kpi-card"><div class="kpi-label">Em alerta / &lt; 2h</div><div class="kpi-value v-alert" id="kpiConsOpen">—</div><div class="kpi-foot">deadline iminente</div></div>
+      <div class="kpi-card"><div class="kpi-label">Deadline &lt; 2h</div><div class="kpi-value v-alert" id="kpiConsOpen">—</div><div class="kpi-foot">deadline iminente</div></div>
       <div class="kpi-card"><div class="kpi-label">Deadline &lt; 6h</div><div class="kpi-value v-warn" id="kpiConsSoon">—</div><div class="kpi-foot">requer atenção</div></div>
       <div class="kpi-card"><div class="kpi-label">Encerrado / sem prazo</div><div class="kpi-value" id="kpiConsNone">—</div><div class="kpi-foot">fora da janela ativa</div></div>
     </div>
@@ -1004,7 +1004,7 @@
     </div>
     <div class="legend">
       <div class="leg-item"><div class="leg-box l-changed"></div>Linha alterada desde a última leitura</div>
-      <div class="leg-item"><div class="leg-box l-2h"></div>Em alerta / deadline &lt; 2h</div>
+      <div class="leg-item"><div class="leg-box l-2h"></div>Deadline &lt; 2h</div>
       <div class="leg-item"><div class="leg-box l-6h"></div>Deadline &lt; 6h</div>
     </div>
   </div><!-- /tab-consolidado -->
@@ -1048,7 +1048,7 @@
 
   /* ---- filtros (client-side, por aba) ---- */
   var FILTER_LABEL={dpw:'Armador', btp:'Agência', santos:'Serviço'};
-  var STATUS_LIST=['Em alerta','Deadline < 2h','Deadline < 6h','Deadline < 24h','No prazo','Encerrado','Sem deadline'];
+  var STATUS_LIST=['Deadline < 2h','Deadline < 6h','Deadline < 24h','No prazo','Encerrado','Sem deadline'];
   function newFilter(){ return {q:'', ref:'', status:'', dl:'', term:''}; }
   var FILTERS={dpw:newFilter(), santos:newFilter(), btp:newFilter(), cons:newFilter()};
 
@@ -1160,12 +1160,13 @@
   }
   function hoursTo(ts){return ts==null?null:(ts-Date.now())/3600000;}
 
-  /* status por urgência de deadline (+ flag alerta vinda do n8n) */
-  function statusOf(dlTs, alerta){
+  /* status por urgência de deadline — puramente por tempo, idêntico p/ os 3 terminais.
+     (a flag `alerta` do n8n NÃO entra aqui: só existe p/ BTP/Santos e tornava a
+     coluna incomparável entre terminais, pois forçava "Em alerta" com deadline distante) */
+  function statusOf(dlTs){
     if(dlTs==null) return {cls:'stp-none', label:'Sem deadline', rank:6};
     var h=hoursTo(dlTs);
     if(h<0)        return {cls:'stp-none', label:'Encerrado',      rank:5};
-    if(alerta)     return {cls:'stp-2h',   label:'Em alerta',      rank:0};
     if(h<2)        return {cls:'stp-2h',   label:'Deadline < 2h',  rank:1};
     if(h<6)        return {cls:'stp-6h',   label:'Deadline < 6h',  rank:2};
     if(h<24)       return {cls:'stp-wait', label:'Deadline < 24h', rank:3};
@@ -1194,7 +1195,7 @@
       alerta=!!it.ALERTA;
       cells=[evtA, evtB, dl];
     }
-    var st=statusOf(dl.ts, alerta);
+    var st=statusOf(dl.ts);
     /* chave natural por terminal (mesma lógica do chave_natural no Supabase):
        santos=idAtracacao, dpw=visita, btp=navio|viagem. É o ID forte de cada
        linha — sem ele, atracações distintas do mesmo navio/berço (viagem nula
@@ -1270,7 +1271,7 @@
     var html='';
     html+='<div class="kpi-grid">'+
       kpiCardId('Total navios', 'kpiTotal-'+term, '', 'na última leitura', 'kpiFoot-'+term)+
-      kpiCardId('Em alerta / < 2h', 'kpiAlert-'+term, 'v-alert', 'deadline iminente')+
+      kpiCardId('Deadline < 2h', 'kpiAlert-'+term, 'v-alert', 'deadline iminente')+
       kpiCardId('Deadline < 6h', 'kpiSoon-'+term, 'v-warn', 'requer atenção')+
       kpiCardId('Encerrado / sem prazo', 'kpiNone-'+term, '', 'fora da janela ativa')+
       '</div>';
@@ -1282,7 +1283,7 @@
     html+='</tr></thead><tbody id="tbody-'+term+'"></tbody></table></div>';
     html+='<div class="legend">'+
       '<div class="leg-item"><div class="leg-box l-changed"></div>Linha alterada desde a última leitura</div>'+
-      '<div class="leg-item"><div class="leg-box l-2h"></div>Em alerta / deadline em menos de 2h</div>'+
+      '<div class="leg-item"><div class="leg-box l-2h"></div>Deadline em menos de 2h</div>'+
       '<div class="leg-item"><div class="leg-box l-6h"></div>Deadline em menos de 6h</div></div>';
     root.innerHTML=html;
     bindFilters(term);   /* eventos da barra */
