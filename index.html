@@ -619,6 +619,11 @@
     .vz-ev-dt   { font: 500 12px var(--timbro-font-body); color: var(--timbro-heading); min-width: 118px; }
     .vz-ev-name { font: 700 11px var(--timbro-font-body); color: var(--timbro-heading); text-transform: uppercase; letter-spacing: .3px; min-width: 165px; }
     .vz-ev-loc  { color: var(--timbro-muted); min-width: 110px; }
+    .vz-ev-conf { min-width: 80px; }
+    /* cabeçalho de colunas da trilha (dentro do modal) */
+    .vz-ev-hd { border-top: none; border-bottom: 1px solid var(--timbro-gray-light); padding-top: 0; padding-bottom: 8px; }
+    .vz-ev-hd span { font: 700 9px var(--timbro-font-body); text-transform: uppercase; letter-spacing: .4px; color: var(--timbro-muted); }
+    .vz-ev-hd .vz-ev-dot { visibility: hidden; background: none; }
     .vz-tag {
       font: 700 8px var(--timbro-font-body); letter-spacing: .4px; text-transform: uppercase;
       padding: 2px 6px; flex-shrink: 0;
@@ -1201,7 +1206,7 @@
   var FILTER_LABEL={dpw:'Armador', btp:'Agência', santos:'Serviço'};
   var STATUS_LIST=['Deadline < 2h','Deadline < 6h','Deadline < 24h','No prazo','Encerrado','Sem deadline'];
   function newFilter(){ return {q:'', ref:'', status:'', dl:'', term:''}; }
-  function newVazFilter(){ return {q:'', arm:'', vst:'', onlyPend:false}; }
+  function newVazFilter(){ return {q:'', arm:'', vst:'', ev:'', dmin:0, onlyPend:false}; }
   var FILTERS={dpw:newFilter(), santos:newFilter(), btp:newFilter(), cons:newFilter(), vaz:newVazFilter()};
 
   function distinctRefs(rows){
@@ -1601,10 +1606,12 @@
     }
     if(f.arm && r.armCod!==f.arm) return false;
     if(f.vst && r.stRaw!==f.vst) return false;
+    if(f.ev && (!r.last || r.last.evento!==f.ev)) return false;  /* filtra pelo ÚLTIMO evento */
+    if(f.dmin && (r.dias==null || r.dias < f.dmin)) return false; /* dias após descarga ≥ N */
     if(f.onlyPend && r.stRaw!=='PENDENTE') return false;
     return true;
   }
-  function vazFilterActive(){ var f=FILTERS.vaz; return !!(f.q||f.arm||f.vst||f.onlyPend); }
+  function vazFilterActive(){ var f=FILTERS.vaz; return !!(f.q||f.arm||f.vst||f.ev||f.dmin||f.onlyPend); }
   function vazFilterBarHtml(){
     var f=FILTERS.vaz, arms={};
     (VAZ||[]).forEach(function(r){ if(r.armCod!=='—') arms[r.armCod]=r.armNome||''; });
@@ -1616,10 +1623,21 @@
     Object.keys(VAZ_STATUS).forEach(function(k){
       stOpts+='<option value="'+k+'"'+(f.vst===k?' selected':'')+'>'+esc(VAZ_STATUS[k].label)+'</option>';
     });
+    /* opções de "Último evento": eventos atuais distintos no dado, por frequência */
+    var evc={};
+    (VAZ||[]).forEach(function(r){ if(r.last && r.last.evento){ evc[r.last.evento]=(evc[r.last.evento]||0)+1; } });
+    var evOpts='<option value="">Todos</option>';
+    Object.keys(evc).sort(function(a,b){ return evc[b]-evc[a] || a.localeCompare(b); }).forEach(function(ev){
+      evOpts+='<option value="'+esc(ev)+'"'+(f.ev===ev?' selected':'')+'>'+esc(ev+' ('+evc[ev]+')')+'</option>';
+    });
     return '<div class="filter-bar">'+
       fltField('Buscar','<input class="flt-input" type="text" id="f-q-vaz" placeholder="Container, BL, booking…" value="'+esc(f.q)+'">')+
       fltField('Armador','<select class="flt-select" id="f-arm-vaz">'+armOpts+'</select>')+
       fltField('Status','<select class="flt-select" id="f-st-vaz">'+stOpts+'</select>')+
+      fltField('Último evento','<select class="flt-select" id="f-ev-vaz">'+evOpts+'</select>')+
+      fltField('Dias após descarga','<select class="flt-select" id="f-dias-vaz">'+
+        [0,7,15,30,60,90].map(function(n){ return '<option value="'+n+'"'+(f.dmin===n?' selected':'')+'>'+(n===0?'Todos':('≥ '+n+' dias'))+'</option>'; }).join('')+
+        '</select>')+
       fltField('Pendências','<div class="flt-chips"><button type="button" class="flt-chip'+(f.onlyPend?' active':'')+'" id="f-pend-vaz">Só pendentes</button></div>')+
       '<button class="flt-clear" id="f-clr-vaz">Limpar filtros</button>'+
     '</div>';
@@ -1631,6 +1649,10 @@
     if(arm) arm.onchange=function(){ FILTERS.vaz.arm=this.value; applyVaz(); };
     var st=document.getElementById('f-st-vaz');
     if(st) st.onchange=function(){ FILTERS.vaz.vst=this.value; applyVaz(); };
+    var evf=document.getElementById('f-ev-vaz');
+    if(evf) evf.onchange=function(){ FILTERS.vaz.ev=this.value; applyVaz(); };
+    var dias=document.getElementById('f-dias-vaz');
+    if(dias) dias.onchange=function(){ FILTERS.vaz.dmin=Number(this.value)||0; applyVaz(); };
     var pend=document.getElementById('f-pend-vaz');
     if(pend) pend.onclick=function(){
       FILTERS.vaz.onlyPend=!FILTERS.vaz.onlyPend;
@@ -1736,6 +1758,13 @@
     if(!r.evs.length){
       h+='<div class="vz-ev"><span class="dv empty">Nenhum evento de tracking para este container.</span></div>';
     } else {
+      h+='<div class="vz-ev vz-ev-hd">'+
+        '<span class="vz-ev-dot" aria-hidden="true"></span>'+
+        '<span class="vz-ev-dt">Data / hora</span>'+
+        '<span class="vz-ev-name">Evento</span>'+
+        '<span class="vz-ev-loc">Local</span>'+
+        '<span class="vz-ev-conf">Confirmação</span>'+
+      '</div>';
       r.evs.forEach(function(e){
         var f=fmtIso(e.datahora);
         var est=String(e.confirmacao||'').toUpperCase()==='ESTIMATED';
