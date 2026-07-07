@@ -1770,8 +1770,10 @@
     if(badge){ badge.textContent=latestN; badge.classList.toggle('zero', latestN===0); }
     var btn=document.getElementById('alertBtn'); if(btn) btn.classList.toggle('has-changes', latestN>0);
     var totalChg=entries.reduce(function(a,e){ return a+(e.changeCount||0); },0)+vazN;
+    var allIds={}; entries.forEach(function(e){ allIds[e.execId]=1; });
+    var nExec=Object.keys(allIds).length;
     var info=document.getElementById('alertFootInfo');
-    if(info) info.textContent=entries.length+' execução(ões) hoje · '+totalChg+' alteração(ões)';
+    if(info) info.textContent=nExec+' execução(ões) hoje · '+totalChg+' alteração(ões)'+(nExec>2?' · exibindo as 2 últimas':'');
     var list=document.getElementById('alertList'); if(!list) return;
     list.innerHTML='';
     if(vazN){
@@ -1790,7 +1792,11 @@
       });
     }
     if(!entries.length && !vazN){ list.innerHTML='<div class="alert-empty">Nenhuma execução comparada hoje ainda.</div>'; return; }
-    entries.forEach(function(e){
+    /* Só as 2 execuções mais recentes (atual + anterior), p/ evitar poluição.
+       O dado completo do dia continua no log e o total no rodapé (alertFootInfo). */
+    var keepIds=[];
+    entries.forEach(function(e){ var id=Number(e.execId); if(keepIds.indexOf(id)<0 && keepIds.length<2) keepIds.push(id); });
+    entries.filter(function(e){ return keepIds.indexOf(Number(e.execId))>=0; }).forEach(function(e){
       var cy=document.createElement('div'); cy.className='alert-cycle';
       cy.textContent=(TSHORT[e.terminal]||e.terminal)+' · exec #'+e.execId+' · '+fmtHM(e.at)+' · '+(e.changeCount?e.changeCount+' alteração(ões)':'sem alterações');
       list.appendChild(cy);
