@@ -567,7 +567,17 @@
       display: inline-block; font-size: 9px; color: var(--timbro-muted);
       margin-right: 6px; transition: transform .12s;
     }
-    .vz-row.expanded .vz-caret { transform: rotate(90deg); }
+    .vz-row.expanded .vz-caret,
+    .vz-crow.expanded .vz-caret { transform: rotate(90deg); }
+    /* sub-tabela de containers (nível 2, aberta ao clicar no BL) */
+    .vz-crow { cursor: pointer; }
+    .vz-subwrap { padding: 4px 8px 10px 20px; }
+    table.t.t-sub { margin: 0; width: 100%; }
+    table.t.t-sub thead th {
+      background: #eef1f5; font-size: 10px; color: var(--timbro-muted);
+      position: static;
+    }
+    table.t.t-sub tr.vz-ev-detail td { border-left-color: var(--timbro-primary); }
     /* trilha de eventos expandida (mesmo padrão do row-detail, em navy neutro) */
     table.t tr.vz-detail td {
       background: #fafbfc !important;
@@ -1087,22 +1097,22 @@
     </div>
     <div id="vazFilterRoot"></div>
     <div class="section-hd">
-      <span class="section-title">Devolução de vazios — 1 linha por container</span>
+      <span class="section-title">Devolução de vazios — 1 linha por BL</span>
       <span class="section-pill" id="pill-vaz">—</span>
       <span class="section-note" id="vazNote">— aguardando primeira leitura…</span>
     </div>
     <div class="table-box">
       <!-- FUTURO: quando a fonte tiver o prazo contratual de devolução (free time),
-           entra aqui a coluna "Prazo Devolução" (entre Dias desde Descarga e Status)
-           e o KPI correspondente. O dado NÃO existe no contrato atual — não inventar. -->
+           entra a coluna "Prazo Devolução" na sub-tabela de containers (entre
+           Dias após Descarga e Status). O dado NÃO existe no contrato atual — não inventar. -->
       <table class="t"><thead><tr>
-        <th>Container</th><th>BL / Booking</th><th>Armador</th><th>Destino</th>
-        <th>Descarga</th><th>Último Evento</th><th>Dias desde Descarga</th><th>Status</th>
+        <th>BL</th><th>Armador</th><th>Destino</th>
+        <th>Containers</th><th>Pendentes</th><th>Status</th>
       </tr></thead><tbody id="tbody-vaz"></tbody></table>
     </div>
     <div class="legend">
       <div class="leg-item"><div class="leg-box l-changed"></div>Status de devolução alterado desde a leitura anterior</div>
-      <div class="leg-item">Clique na linha para ver a trilha completa de eventos do container</div>
+      <div class="leg-item">Clique no BL para ver seus containers · clique no container para a trilha de eventos</div>
     </div>
   </div><!-- /tab-vazios -->
 
@@ -1611,37 +1621,91 @@
     });
   }
 
-  function vazRowHtml(r){
+  /* ── NÍVEL BL: agrupa os containers (VAZ) por BL ── */
+  function groupByBl(rows){
+    var map={}, order=[];
+    rows.forEach(function(r){
+      if(!map[r.bl]){ map[r.bl]={bl:r.bl, armCod:r.armCod, armNome:r.armNome, destino:r.destino, conts:[]}; order.push(r.bl); }
+      map[r.bl].conts.push(r);
+    });
+    return order.map(function(b){ return map[b]; });
+  }
+  function blSummary(g){
+    var s={total:g.conts.length, dev:0, pend:0, trans:0, sem:0, maxDias:-1};
+    g.conts.forEach(function(c){
+      if(c.stRaw==='DEVOLVIDO')s.dev++; else if(c.stRaw==='PENDENTE')s.pend++;
+      else if(c.stRaw==='EM_TRANSITO')s.trans++; else s.sem++;
+      if(c.dias!=null && c.dias>s.maxDias) s.maxDias=c.dias;
+    });
+    return s;
+  }
+  /* BLs com pendentes primeiro; depois pelo maior "dias após descarga" */
+  function sortGroups(gs){
+    return gs.slice().sort(function(a,b){
+      var sa=blSummary(a), sb=blSummary(b);
+      var pa=sa.pend>0?0:1, pb=sb.pend>0?0:1;
+      if(pa!==pb) return pa-pb;
+      if(sa.maxDias!==sb.maxDias) return sb.maxDias-sa.maxDias;
+      return String(a.bl).localeCompare(String(b.bl));
+    });
+  }
+
+  /* célula "último evento" (reusada nas linhas de container) */
+  function lastEvCell(r){
+    if(!r.last) return '<td><span class="dv empty">—</span></td>';
+    var lf=fmtIso(r.last.datahora);
+    var est=String(r.last.confirmacao||'').toUpperCase()==='ESTIMATED';
+    return '<td><div class="dv">'+esc(r.last.evento)+
+      ' <span class="vz-tag '+(est?'vz-tag-est':'vz-tag-act')+'">'+(est?'Estimated':'Actual')+'</span></div>'+
+      '<div class="ship-sub">'+esc(r.last.local||'—')+' · '+esc(lf.label)+'</div></td>';
+  }
+
+  /* NÍVEL 1 — linha do BL (linhas da tabela principal) */
+  function blRowHtml(g){
+    var s=blSummary(g);
+    var anyChg=g.conts.some(function(c){ return VAZ_CHANGED[c.key]; });
+    var pill;
+    if(s.pend>0)                   pill='<span class="stp stp-6h"><span class="stp-dot"></span>'+s.pend+' pendente'+(s.pend>1?'s':'')+'</span>';
+    else if(s.trans>0)             pill='<span class="stp stp-none"><span class="stp-dot"></span>Em trânsito</span>';
+    else if(s.sem>0 && s.dev===0)  pill='<span class="stp stp-2h"><span class="stp-dot"></span>Sem rastreio</span>';
+    else                           pill='<span class="stp stp-wait"><span class="stp-dot"></span>Todos devolvidos</span>';
+    return '<tr class="vz-row vz-bl'+(anyChg?' tr-changed':'')+'" data-bl="'+esc(g.bl)+'">'+
+      '<td><div class="ship-name"><span class="vz-caret">▸</span>'+esc(g.bl)+
+        (anyChg?' <span class="bdg-changed">Alterado</span>':'')+'</div>'+
+        '<div class="ship-sub">'+s.total+' container'+(s.total>1?'s':'')+'</div></td>'+
+      '<td><span class="tpill '+armPill(g.armCod)+'">'+esc(g.armCod)+'</span></td>'+
+      '<td><span class="dv">'+esc(g.destino)+'</span></td>'+
+      '<td><span class="dv">'+s.total+'</span></td>'+
+      '<td><span class="dv'+(s.pend?'':' empty')+'">'+(s.pend||'—')+'</span></td>'+
+      '<td>'+pill+'</td></tr>';
+  }
+
+  /* NÍVEL 2 — linha de container (dentro da sub-tabela do BL) */
+  function contRowHtml(r){
     var chg=VAZ_CHANGED[r.key];
-    var lastCell;
-    if(r.last){
-      var lf=fmtIso(r.last.datahora);
-      var est=String(r.last.confirmacao||'').toUpperCase()==='ESTIMATED';
-      lastCell='<td><div class="dv">'+esc(r.last.evento)+
-        ' <span class="vz-tag '+(est?'vz-tag-est':'vz-tag-act')+'">'+(est?'Estimated':'Actual')+'</span></div>'+
-        '<div class="ship-sub">'+esc(r.last.local||'—')+' · '+esc(lf.label)+'</div></td>';
-    } else {
-      lastCell='<td><span class="dv empty">—</span></td>';
-    }
-    return '<tr class="vz-row'+(chg?' tr-changed':'')+(r.stRaw==='SEM_RASTREIO'?' tr-2h':'')+'" data-vk="'+esc(r.key)+'">'+
+    return '<tr class="vz-crow'+(chg?' tr-changed':'')+(r.stRaw==='SEM_RASTREIO'?' tr-2h':'')+'" data-vk="'+esc(r.key)+'">'+
       '<td><div class="ship-name"><span class="vz-caret">▸</span>'+esc(r.container)+
         (chg?' <span class="bdg-changed">Alterado</span>':'')+'</div>'+
         '<div class="ship-sub">'+esc(r.tipo||'—')+'</div></td>'+
-      '<td><div class="dv">'+esc(r.bl)+'</div><div class="ship-sub">'+(r.booking?('Booking '+esc(r.booking)):'—')+'</div></td>'+
-      '<td><span class="tpill '+armPill(r.armCod)+'">'+esc(r.armCod)+'</span></td>'+
-      '<td><span class="dv">'+esc(r.destino)+'</span></td>'+
       dvCell(r.desc)+
-      lastCell+
+      lastEvCell(r)+
       '<td><span class="dv'+(r.dias==null?' empty':'')+'">'+(r.dias==null?'—':r.dias)+'</span></td>'+
       '<td><span class="stp '+r.st.cls+'"><span class="stp-dot"></span>'+esc(r.st.label)+'</span></td></tr>';
   }
+  function blDetailHtml(g){
+    var conts=sortVaz(g.conts);
+    return '<tr class="vz-detail vz-bl-detail"><td colspan="6"><div class="vz-subwrap">'+
+      '<table class="t t-sub"><thead><tr>'+
+      '<th>Container</th><th>Descarga</th><th>Último Evento</th><th>Dias após Descarga</th><th>Status</th>'+
+      '</tr></thead><tbody>'+conts.map(contRowHtml).join('')+'</tbody></table></div></td></tr>';
+  }
 
-  /* trilha completa de eventos (accordion aberto pelo clique na linha) */
-  function vazDetailHtml(r){
-    var h='<tr class="vz-detail"><td colspan="8"><div class="vz-trail">'+
+  /* NÍVEL 3 — trilha completa de eventos (aberta pelo clique no container) */
+  function vazEventTrailHtml(r){
+    var h='<tr class="vz-detail vz-ev-detail"><td colspan="5"><div class="vz-trail">'+
       '<div class="vz-trail-title">Trilha de eventos — '+esc(r.container)+' · BL '+esc(r.bl)+'</div>';
     if(!r.evs.length){
-      h+='<div class="vz-ev"><span class="dv empty">Nenhum evento de tracking para este BL.</span></div>';
+      h+='<div class="vz-ev"><span class="dv empty">Nenhum evento de tracking para este container.</span></div>';
     } else {
       r.evs.forEach(function(e){
         var f=fmtIso(e.datahora);
@@ -1660,33 +1724,37 @@
     return h;
   }
 
+  var VAZ_GROUPS=[];   /* grupos (BL) atualmente renderizados — usados no expand */
   function applyVaz(){
     var tbody=document.getElementById('tbody-vaz');
     if(!tbody) return;
     var all=VAZ||[], f=FILTERS.vaz;
-    var rows=sortVaz(all.filter(vazMatches));
+    var filtered=all.filter(vazMatches);
+    var groups=sortGroups(groupByBl(filtered));
+    VAZ_GROUPS=groups;
     var k={rastreados:0, dev:0, pend:0, sem:0};
-    rows.forEach(function(r){
+    filtered.forEach(function(r){
       if(r.stRaw==='SEM_RASTREIO') k.sem++; else k.rastreados++;
       if(r.stRaw==='DEVOLVIDO') k.dev++;
       if(r.stRaw==='PENDENTE') k.pend++;
     });
-    if(!rows.length){
+    if(!groups.length){
       var msg;
       if(!all.length)          msg='Sem dados de vazios — aguardando leitura do tracking.';
-      else if(f.onlyPend)      msg='Nenhum container pendente — todos os vazios devolvidos ou em trânsito.';
-      else                     msg='Nenhum container com os filtros aplicados.';
-      tbody.innerHTML='<tr><td colspan="8"><span class="dv empty">'+esc(msg)+'</span></td></tr>';
+      else if(f.onlyPend)      msg='Nenhum BL com container pendente de devolução.';
+      else                     msg='Nenhum BL com os filtros aplicados.';
+      tbody.innerHTML='<tr><td colspan="6"><span class="dv empty">'+esc(msg)+'</span></td></tr>';
     } else {
-      tbody.innerHTML=rows.map(vazRowHtml).join('');
+      tbody.innerHTML=groups.map(blRowHtml).join('');
     }
     setText('kpiVazTotal', k.rastreados);
     setText('kpiVazDev',   k.dev);
     setText('kpiVazPend',  k.pend);
     setText('kpiVazSem',   k.sem);
     var act=vazFilterActive();
-    setText('kpiVazFoot', act ? ('de '+all.length+' na leitura') : 'nos BLs monitorados');
-    setText('pill-vaz', act ? (rows.length+' de '+all.length+' containers') : (all.length+' containers'));
+    var totalBls=groupByBl(all).length;
+    setText('kpiVazFoot', act ? ('de '+all.length+' containers') : 'nos BLs monitorados');
+    setText('pill-vaz', act ? (groups.length+' de '+totalBls+' BLs') : (groups.length+' BLs'));
   }
 
   function renderVazios(){
@@ -1704,16 +1772,32 @@
     applyVaz();
   }
 
-  /* clique na linha expande/recolhe a trilha (delegação: o tbody é fixo no HTML) */
+  /* clique com 2 níveis (delegação no tbody fixo):
+     - clique no CONTAINER (vz-crow) → abre/fecha a trilha de eventos
+     - clique no BL (vz-bl)          → abre/fecha a sub-tabela de containers */
   document.getElementById('tbody-vaz').addEventListener('click', function(e){
-    var tr=e.target.closest('tr.vz-row'); if(!tr) return;
-    var open=tr.classList.toggle('expanded');
-    var next=tr.nextElementSibling;
-    if(next && next.classList.contains('vz-detail')) next.remove();
-    if(open){
-      var key=tr.getAttribute('data-vk');
-      var r=(VAZ||[]).filter(function(x){ return x.key===key; })[0];
-      if(r) tr.insertAdjacentHTML('afterend', vazDetailHtml(r));
+    var crow=e.target.closest('tr.vz-crow');
+    if(crow){
+      var open=crow.classList.toggle('expanded');
+      var nx=crow.nextElementSibling;
+      if(nx && nx.classList.contains('vz-ev-detail')) nx.remove();
+      if(open){
+        var key=crow.getAttribute('data-vk');
+        var r=(VAZ||[]).filter(function(x){ return x.key===key; })[0];
+        if(r) crow.insertAdjacentHTML('afterend', vazEventTrailHtml(r));
+      }
+      return;
+    }
+    var blrow=e.target.closest('tr.vz-bl');
+    if(blrow){
+      var bopen=blrow.classList.toggle('expanded');
+      var bnx=blrow.nextElementSibling;
+      if(bnx && bnx.classList.contains('vz-bl-detail')) bnx.remove();
+      if(bopen){
+        var bl=blrow.getAttribute('data-bl');
+        var g=(VAZ_GROUPS||[]).filter(function(x){ return x.bl===bl; })[0];
+        if(g) blrow.insertAdjacentHTML('afterend', blDetailHtml(g));
+      }
     }
   });
 
