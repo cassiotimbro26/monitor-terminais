@@ -50,49 +50,7 @@
     }
 
     /* ===== HEADER ===== */
-    .header {
-      background: var(--timbro-navy);
-      height: 54px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .logo-asa {
-      flex-shrink: 0;
-    }
-    .logo-wordmark {
-      font: 400 14px var(--timbro-font-body);
-      letter-spacing: 8px;
-      color: #fff;
-      text-transform: uppercase;
-      line-height: 1;
-    }
-    .header-sep {
-      width: 1px;
-      height: 22px;
-      background: rgba(255,255,255,.22);
-      flex-shrink: 0;
-    }
-    .header-title {
-      font: 400 18px var(--timbro-font-heading);
-      color: #fff;
-      white-space: nowrap;
-    }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      flex-shrink: 0;
-    }
+    /* Itens movidos da antiga barra escura p/ a barra de Captura (fundo claro) */
     .header-update {
       display: flex;
       flex-direction: column;
@@ -103,26 +61,25 @@
       font: 400 10px var(--timbro-font-body);
       text-transform: uppercase;
       letter-spacing: .4px;
-      color: var(--timbro-text-on-dark);
-      opacity: .7;
+      color: var(--timbro-muted);
     }
     .header-update-time {
       font: 700 13px var(--timbro-font-body);
-      color: #fff;
+      color: var(--timbro-heading);
     }
     .countdown-wrap {
       display: flex;
       align-items: center;
       gap: 7px;
-      background: rgba(255,255,255,.09);
+      background: #f4f5f7;
       padding: 6px 12px;
-      border: 1px solid rgba(255,255,255,.14);
+      border: 1px solid var(--timbro-gray-light);
     }
     .countdown-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: #4ade80;
+      background: #16a34a;
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
@@ -131,12 +88,11 @@
     }
     .countdown-text {
       font: 700 12px var(--timbro-font-body);
-      color: #fff;
+      color: var(--timbro-heading);
     }
     .countdown-label {
       font: 300 11px var(--timbro-font-body);
-      color: var(--timbro-text-on-dark);
-      opacity: .8;
+      color: var(--timbro-muted);
     }
 
     /* ===== HEALTH BAR ===== */
@@ -144,10 +100,13 @@
       background: #fff;
       border-bottom: 1px solid var(--timbro-gray-light);
       padding: 0 28px;
-      height: 40px;
+      height: 44px;
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 18px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .health-bar-label {
       font: 700 10px var(--timbro-font-body);
@@ -177,10 +136,11 @@
     .h-status-warn { color: #d97706; font-weight: 700; font-size: 11px; }
     .health-bar-right {
       margin-left: auto;
-      font: 400 11px var(--timbro-font-body);
-      color: var(--timbro-muted);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-shrink: 0;
     }
-    .health-bar-right strong { color: var(--timbro-heading); }
 
     /* ===== MAIN ===== */
     .main { padding: 20px 28px 40px; }
@@ -636,30 +596,30 @@
     .alert-wrap { position: relative; }
     .alert-btn {
       display: flex; align-items: center; gap: 7px;
-      background: rgba(255,255,255,.09);
-      border: 1px solid rgba(255,255,255,.14);
-      padding: 6px 12px; cursor: pointer; color: #fff;
+      background: #f4f5f7;
+      border: 1px solid var(--timbro-gray-light);
+      padding: 6px 12px; cursor: pointer; color: var(--timbro-heading);
       font: 700 12px var(--timbro-font-body);
     }
-    .alert-btn:hover { background: rgba(255,255,255,.16); }
+    .alert-btn:hover { background: #e9ebef; }
     .alert-btn .siren { font-size: 15px; line-height: 1; }
-    .alert-btn.has-changes { border-color: var(--timbro-primary); background: rgba(214,7,76,.20); }
+    .alert-btn.has-changes { border-color: var(--timbro-primary); background: rgba(214,7,76,.10); }
     .alert-btn.flash { animation: sirenflash .8s ease-in-out 7; }
     @keyframes sirenflash {
-      0%,100% { background: rgba(214,7,76,.20); box-shadow: 0 0 0 0 rgba(214,7,76,0); }
-      50%     { background: var(--timbro-primary); box-shadow: 0 0 0 4px rgba(214,7,76,.35); }
+      0%,100% { background: rgba(214,7,76,.10); box-shadow: 0 0 0 0 rgba(214,7,76,0); }
+      50%     { background: rgba(214,7,76,.30); box-shadow: 0 0 0 4px rgba(214,7,76,.25); }
     }
-    .alert-label { font: 400 11px var(--timbro-font-body); color: var(--timbro-text-on-dark); opacity: .85; }
+    .alert-label { font: 400 11px var(--timbro-font-body); color: var(--timbro-muted); }
     .alert-badge {
       display: inline-block; min-width: 17px; text-align: center;
       background: var(--timbro-primary); color: #fff;
       font: 700 10px var(--timbro-font-body);
       border-radius: 9px; padding: 1px 5px;
     }
-    .alert-badge.zero { background: rgba(255,255,255,.22); color: var(--timbro-text-on-dark); }
+    .alert-badge.zero { background: #e3e5e9; color: var(--timbro-muted); }
 
     .alert-dd {
-      position: fixed; top: 64px; right: 24px;
+      position: fixed; top: 48px; right: 24px;
       width: 430px; max-height: 470px; overflow-y: auto;
       background: #fff; border: 1px solid #dde0e6;
       box-shadow: 0 12px 32px rgba(26,43,78,.22);
@@ -749,8 +709,6 @@
     @media (max-width: 900px) {
       .main { padding: 14px 14px 32px; }
       .health-bar { padding: 0 14px; gap: 10px; overflow-x: auto; }
-      .header { padding: 0 14px; }
-      .header-title { display: none; }
       .kpi-grid { grid-template-columns: 1fr 1fr; }
       table.t { font-size: 12px; }
       table.t th, table.t td { padding: 8px 8px; }
@@ -760,48 +718,7 @@
 </head>
 <body>
 
-<!-- ===== HEADER ===== -->
-<header class="header">
-  <div class="header-left">
-    <!-- Asa Timbro (SVG inline) -->
-    <svg class="logo-asa" width="20" height="16" viewBox="0 0 41 32" aria-hidden="true">
-      <path d="M2 4 C10 14 16 20 21 30 C23 20 26 14 39 4 C30 8 25 10 21 16 C16 10 10 7 2 4 Z" fill="#d6074c"/>
-    </svg>
-    <span class="logo-wordmark">Timbro</span>
-    <div class="header-sep"></div>
-    <span class="header-title">Monitor de Terminais · Mesa Agro</span>
-  </div>
-  <div class="header-right">
-    <div class="header-update">
-      <span class="header-update-label">Última atualização</span>
-      <span class="header-update-time">22/06/2026 14:47</span>
-    </div>
-    <div class="alert-wrap">
-      <button class="alert-btn has-changes" id="alertBtn" onclick="toggleAlerts(event)" aria-haspopup="true" aria-expanded="false">
-        <span class="siren">🚨</span>
-        <span class="alert-label">Alterações</span>
-        <span class="alert-badge" id="alertBadge">0</span>
-      </button>
-      <div class="alert-dd" id="alertDd">
-        <div class="alert-dd-hd">
-          <span class="alert-dd-title"><span>🚨</span> Alterações por execução</span>
-        </div>
-        <div id="alertList"></div>
-        <div class="alert-dd-ft">
-          <span class="alert-dd-sub" id="alertFootInfo">—</span>
-          <button class="alert-sim" onclick="runRefresh()">Atualizar agora</button>
-        </div>
-      </div>
-    </div>
-    <div class="countdown-wrap">
-      <span class="countdown-dot"></span>
-      <span class="countdown-label">Próx. em</span>
-      <span class="countdown-text" id="countdown">15m 00s</span>
-    </div>
-  </div>
-</header>
-
-<!-- ===== HEALTH BAR ===== -->
+<!-- ===== BARRA DE STATUS (Captura) — única barra fixa do topo ===== -->
 <div class="health-bar">
   <span class="health-bar-label">Captura</span>
 
@@ -835,7 +752,34 @@
     <span class="h-status-ok">OK</span>
   </span>
 
-  <span class="health-bar-right">Atualização automática a cada <strong>15 minutos</strong></span>
+  <div class="health-bar-right">
+    <div class="header-update">
+      <span class="header-update-label">Última atualização</span>
+      <span class="header-update-time">22/06/2026 14:47</span>
+    </div>
+    <div class="alert-wrap">
+      <button class="alert-btn has-changes" id="alertBtn" onclick="toggleAlerts(event)" aria-haspopup="true" aria-expanded="false">
+        <span class="siren">🚨</span>
+        <span class="alert-label">Alterações</span>
+        <span class="alert-badge" id="alertBadge">0</span>
+      </button>
+      <div class="alert-dd" id="alertDd">
+        <div class="alert-dd-hd">
+          <span class="alert-dd-title"><span>🚨</span> Alterações por execução</span>
+        </div>
+        <div id="alertList"></div>
+        <div class="alert-dd-ft">
+          <span class="alert-dd-sub" id="alertFootInfo">—</span>
+          <button class="alert-sim" onclick="runRefresh()">Atualizar agora</button>
+        </div>
+      </div>
+    </div>
+    <div class="countdown-wrap">
+      <span class="countdown-dot"></span>
+      <span class="countdown-label">Próx. em</span>
+      <span class="countdown-text" id="countdown">15m 00s</span>
+    </div>
+  </div>
 </div>
 
 <!-- ===== MAIN ===== -->
